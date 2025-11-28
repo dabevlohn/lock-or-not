@@ -1,93 +1,66 @@
-use std::sync::{Arc, Mutex};
-use std::thread;
+use crossbeam_queue::SegQueue;
+use std::sync::Arc;
+use std::thread::{self, sleep};
+use std::time::Duration;
 
 trait Job {
-    fn run(&self, n: usize);
-    fn add(&self);
+    fn run(&self);
+    fn add(&self, value: i8);
 }
 
 struct Ji {
-    a: Arc<Mutex<Vec<i8>>>, // Mutex для изменяемого доступа
-}
-
-struct Js {
-    a: Arc<Mutex<Vec<String>>>,
+    a: Arc<SegQueue<i8>>, // Используем неблокирующую очередь
 }
 
 impl Job for Ji {
-    fn run(&self, n: usize) {
-        if n < self.a.lock().unwrap().len() {
-            println!(
-                "Job {:?}: a[{}] = {:?}, lc: {}",
-                std::thread::current().id(),
-                n,
-                self.a.lock().unwrap()[n],
-                Arc::strong_count(&self.a)
-            );
-        }
+    fn run(&self) {
+        // Нельзя индексировать, просто демонстрируем размер
+        println!(
+            "Job {:?}: количество элементов примерно {}",
+            std::thread::current().id(),
+            self.a.len()
+        );
     }
 
-    fn add(&self) {
-        self.a.lock().unwrap().push(8); // Теперь работает!
+    fn add(&self, value: i8) {
+        self.a.push(value); // Lock-free добавление
     }
 }
 
-impl Job for Js {
-    fn run(&self, n: usize) {
-        if n < self.a.lock().unwrap().len() {
-            println!(
-                "Mob {:?}: a[{}] = {:?}, lc: {}",
-                std::thread::current().id(),
-                n,
-                &self.a.lock().unwrap()[n],
-                Arc::strong_count(&self.a)
-            );
-        }
-    }
-
-    fn add(&self) {
-        self.a.lock().unwrap().push("B".to_string());
-    }
-}
-
-fn spawn_job(job: Arc<dyn Job + Send + Sync + 'static>, n: usize) -> thread::JoinHandle<()> {
+fn spawn_job(job: Arc<dyn Job + Send + Sync + 'static>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
-        job.run(n);
+        job.run();
+        sleep(Duration::from_millis(2));
     })
 }
 
-fn spawn_add(job: Arc<dyn Job + Send + Sync + 'static>) -> thread::JoinHandle<()> {
+fn spawn_add(job: Arc<dyn Job + Send + Sync + 'static>, i: i8) -> thread::JoinHandle<()> {
     thread::spawn(move || {
-        job.add();
+        job.add(i);
+        sleep(Duration::from_millis(2));
     })
 }
 
 fn main() {
-    let di = Arc::new(Mutex::new(vec![1; 10]));
-    let ds = Arc::new(Mutex::new(vec!["A".to_string(); 10]));
+    let queue = Arc::new(SegQueue::new());
+    let ji = Ji {
+        a: Arc::clone(&queue),
+    };
+    let job = Arc::new(ji) as Arc<dyn Job + Send + Sync + 'static>;
 
-    let ji = Ji { a: Arc::clone(&di) };
-    let js = Js { a: Arc::clone(&ds) };
-
-    let jobi = Arc::new(ji) as Arc<dyn Job + Send + Sync + 'static>;
-    let jobs = Arc::new(js) as Arc<dyn Job + Send + Sync + 'static>;
-
+    // Запустим несколько потоков, которые будут читать состояние
     let mut handles = vec![];
-
-    // Запуск run() для всех
-    for n in 0..13 {
-        let hir = spawn_job(Arc::clone(&jobi), n);
-        let hia = spawn_add(Arc::clone(&jobi));
-        let hsr = spawn_job(Arc::clone(&jobs), n);
-        let hsa = spawn_add(Arc::clone(&jobs));
-        handles.push(hir);
-        handles.push(hia);
-        handles.push(hsr);
-        handles.push(hsa);
+    for i in 0..10 {
+        let job_clone = Arc::clone(&job);
+        let hr = spawn_job(job_clone);
+        let ha = spawn_add(job_clone, i);
+        handles.push(hr);
+        handles.push(ha);
     }
 
-    // Ждём завершения run()
     for handle in handles {
         handle.join().unwrap();
     }
+
+    println!("Всего элементов после добавления: {}", queue.len());
 }
