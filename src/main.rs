@@ -1,7 +1,8 @@
 use crossbeam_queue::SegQueue;
 use std::sync::Arc;
-use std::thread::{self, sleep};
-use std::time::Duration;
+use std::thread;
+// use std::thread::{self, sleep};
+// use std::time::Duration;
 
 trait Job {
     fn run(&self);
@@ -30,14 +31,14 @@ impl Job for Ji {
 fn spawn_job(job: Arc<dyn Job + Send + Sync + 'static>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         job.run();
-        sleep(Duration::from_millis(2));
+        // sleep(Duration::from_millis(2));
     })
 }
 
 fn spawn_add(job: Arc<dyn Job + Send + Sync + 'static>, i: i8) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         job.add(i);
-        sleep(Duration::from_millis(2));
+        // sleep(Duration::from_millis(2));
     })
 }
 
@@ -51,9 +52,8 @@ fn main() {
     // Запустим несколько потоков, которые будут читать состояние
     let mut handles = vec![];
     for i in 0..10 {
-        let job_clone = Arc::clone(&job);
-        let hr = spawn_job(job_clone);
-        let ha = spawn_add(job_clone, i);
+        let hr = spawn_job(Arc::clone(&job));
+        let ha = spawn_add(Arc::clone(&job), i);
         handles.push(hr);
         handles.push(ha);
     }
