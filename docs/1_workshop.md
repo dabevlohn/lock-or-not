@@ -44,7 +44,7 @@ fn main() {
 
 ### 2. Реализация структур данных: LinkedList, BTreeMap, Graph
 
-#### **LinkedList на safe Rust:**
+#### LinkedList на safe Rust
 
 ```rust
 use std::fmt;
@@ -106,7 +106,7 @@ fn main() {
 }
 ```
 
-#### **BTreeMap (используем стандартную библиотеку):**
+#### BTreeMap (используем стандартную библиотеку)
 
 ```rust
 use std::collections::BTreeMap;
@@ -135,7 +135,7 @@ fn main() {
 }
 ```
 
-#### **Graph на safe Rust (с индексами):**
+#### Graph на safe Rust (с индексами)
 
 ```rust
 pub struct Graph<T> {
@@ -216,7 +216,7 @@ fn main() {
 
 ### 3. Почему borrow checker бракует наивную реализацию?
 
-**Проблема 1: Циклические ссылки**
+#### Проблема 1: Циклические ссылки
 
 ```rust
 // ❌ ЭТО НЕ КОМПИЛИРУЕТСЯ
@@ -232,7 +232,7 @@ struct Node<T> {
 - Если у узла есть `next`, а у того есть `prev`, получается циклическое заимствование
 - Невозможно безопасно удалить узел, так как на него ссылаются другие
 
-**Проблема 2: Множественное заимствование**
+#### Проблема 2: Множественное заимствование
 
 ```rust
 // ❌ ЭТО НЕ КОМПИЛИРУЕТСЯ
@@ -250,7 +250,7 @@ fn main() {
 }
 ```
 
-**Проблема 3: Lifetime issues**
+#### Проблема 3: Lifetime issues
 
 ```rust
 // ❌ ЭТО НЕ КОМПИЛИРУЕТСЯ
@@ -270,7 +270,7 @@ impl<'a, T> LinkedList<'a, T> {
 
 ### 4. Как обойти требования borrow checker с помощью Rc и RefCell?
 
-**Rc (Reference Counting) — множественное владение (read-only)**
+#### Rc (Reference Counting) — множественное владение (read-only)
 
 ```rust
 use std::rc::Rc;
@@ -302,7 +302,7 @@ fn main() {
 }
 ```
 
-**RefCell (Interior Mutability) — mutable доступ**
+#### RefCell (Interior Mutability) — mutable доступ
 
 ```rust
 use std::rc::Rc;
@@ -338,7 +338,7 @@ fn main() {
 }
 ```
 
-**Rc + RefCell для двусвязного списка:**
+#### Rc + RefCell для двусвязного списка
 
 ```rust
 use std::rc::Rc;
@@ -511,7 +511,7 @@ fn main() {
 
 ### 6. Как unsafe-код может помочь оптимизировать реализацию?
 
-**Пример 1: Быстрое удаление элементов из связного списка**
+#### Пример 1: Быстрое удаление элементов из связного списка
 
 ```rust
 use std::ptr::NonNull;
@@ -574,7 +574,7 @@ fn main() {
 }
 ```
 
-**Пример 2: Custom allocator для ещё большей производительности**
+#### Пример 2: Custom allocator для ещё большей производительности
 
 ```rust
 // Используем bumpalo для fast allocation
@@ -620,7 +620,7 @@ fn main() {
 }
 ```
 
-**Пример 3: Intrusive list (максимальная оптимизация)**
+#### Пример 3: Intrusive list (максимальная оптимизация)
 
 ```rust
 // Узел содержит ссылку на себя, а не на данные!
