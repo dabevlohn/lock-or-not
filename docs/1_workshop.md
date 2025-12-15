@@ -1,12 +1,318 @@
-## Rust Workshop: Связные структуры данных и Borrow Checker
+# Rust Workshop: Связные структуры данных и Borrow Checker
 
 ---
 
-### 1. Как написать связные структуры данных на safe Rust?
+## 1. Что такое LinkedList и зачем он нужен?
 
-**Основная сложность:** Rust требует явного управления владением. В связных структурах каждый узел владеет следующим, но нужна гибкость для разных паттернов доступа.
+**Linked List (связный список)** — это динамическая структура данных, состоящая из последовательности **узлов (nodes)**, где каждый узел содержит:
 
-**Наивный подход (РАБОТАЕТ для однонаправленных списков):**
+1. **Данные** (value)
+2. **Ссылку на следующий узел** (next pointer) — или на следующий и предыдущий в двусвязных списках
+
+```
+Однонаправленный связный список:
+┌───────┐    ┌───────┐    ┌───────┐
+│ data:1│───▶│ data:2│───▶│ data:3│───▶ None
+│ next  │    │ next  │    │ next  │
+└───────┘    └───────┘    └───────┘
+
+Двусвязный список:
+┌───────────┐    ┌───────────┐    ┌─────────┐
+│ data:1    │    │ data:2    │    │ data:3  │
+│ next  ────┼───▶│ next  ────┼───▶│ next    │──▶ None
+│ prev  ◀───┼────│ prev  ◀───┼────│ prev    │
+└───────────┘    └───────────┘    └─────────┘
+```
+
+---
+
+### Преимущества Linked List
+
+| Операция                     | Временная сложность  | Преимущество                              |
+| :--------------------------- | :------------------- | :---------------------------------------- |
+| **Вставка в начало**         | O(1)                 | Очень быстро, нет нужды сдвигать элементы |
+| **Удаление из начала**       | O(1)                 | Моментально                               |
+| **Вставка/удаление в конце** | O(1) для двусвязного | Быстро с tail pointer                     |
+| **Динамическое расширение**  | O(1) за элемент      | Не требует переаллокации памяти           |
+| **Гибкость размера**         | Неограниченно        | Растёт по мере необходимости              |
+
+---
+
+### Недостатки Linked List
+
+| Операция               | Временная сложность | Проблема                 |
+| :--------------------- | :------------------ | :----------------------- |
+| **Доступ по индексу**  | O(n)                | Нужно пройти от начала   |
+| **Поиск элемента**     | O(n)                | Линейный поиск           |
+| **Cache-friendliness** | Плохо               | Узлы разбросаны в памяти |
+| **Память на узел**     | +2 pointer          | Overhead за ссылки       |
+
+---
+
+### Где используется Linked List?
+
+1. Очереди (Queues)
+
+Идеален для структур, где нужны операции add-to-end и remove-from-front:
+
+```rust
+struct Queue<T> {
+    head: Option<Box<Node<T>>>,
+    tail: Option<&mut Node<T>>,  // Указатель на конец
+}
+
+// enqueue: O(1) - добавляем в конец
+// dequeue: O(1) - удаляем из начала
+```
+
+2. Стеки (Stacks)
+
+Хотя Vec здесь быстрее, linked list работает:
+
+```rust
+struct Stack<T> {
+    top: Option<Box<Node<T>>>,
+}
+
+// push: O(1) - добавляем в начало
+// pop: O(1) - удаляем из начала
+```
+
+3. LRU Cache (Least Recently Used)
+
+Требуется быстрое удаление элемента из середины + fast add/remove с концов:
+
+```rust
+// Двусвязный список для отслеживания порядка доступа
+// HashMap для O(1) доступа
+// Двусвязный список + HashMap = O(1) для всех операций!
+
+struct LRUCache<K, V> {
+    cache: HashMap<K, NodeRef<V>>,
+    list: DoublyLinkedList<V>,  // Порядок использования
+}
+```
+
+4. Графы с динамическими списками смежности
+
+Когда набор соседей узла часто меняется:
+
+```rust
+struct Graph<T> {
+    nodes: Vec<Node<T>>,
+}
+
+struct Node<T> {
+    data: T,
+    neighbors: LinkedList<usize>,  // Динамический список соседей
+}
+
+// Добавление ребра: O(1) вставка в список
+// Удаление ребра: O(n) поиск, но очень быстро на практике
+```
+
+5. Undo/Redo системы
+
+История команд в приложениях:
+
+```rust
+struct CommandHistory {
+    past: LinkedList<Command>,
+    future: LinkedList<Command>,
+}
+
+// Undo: pop из past, push в future - O(1)
+// Redo: pop из future, push в past - O(1)
+```
+
+6. Разреженные структуры (Sparse Data)
+
+Когда данные разреженные и нужна экономия памяти:
+
+```rust
+// Вместо Vec из 1 млн элементов, где 99% пусто
+// Используем LinkedList с 100 элементами
+struct SparseVector<T> {
+    elements: LinkedList<(usize, T)>,  // Только ненулевые элементы
+}
+```
+
+---
+
+### Сравнение с другими структурами
+
+| Структура      | Вставка в начало | Доступ по индексу | Поиск    | Память      | Когда использовать     |
+| :------------- | :--------------- | :---------------- | :------- | :---------- | :--------------------- |
+| **Vec**        | O(n)             | O(1)              | O(n)     | Плотная     | Нужен индексный доступ |
+| **LinkedList** | O(1)             | O(n)              | O(n)     | Разреженная | Операции с концов      |
+| **VecDeque**   | O(1)             | O(1)              | O(n)     | Плотная     | Двусторонняя очередь   |
+| **HashMap**    | N/A              | O(1) by key       | O(1) avg | Разреженная | Быстрый поиск          |
+
+---
+
+### Практический пример: LRU Cache
+
+```rust
+use std::collections::HashMap;
+use std::rc::{Rc, Weak};
+use std::cell::RefCell;
+
+type NodeRef<K, V> = Rc<RefCell<Node<K, V>>>;
+
+struct Node<K, V> {
+    key: K,
+    value: V,
+    prev: Option<NodeRef<K, V>>,
+    next: Option<NodeRef<K, V>>,
+}
+
+pub struct LRUCache<K: Clone + Eq + std::hash::Hash, V: Clone> {
+    capacity: usize,
+    cache: HashMap<K, NodeRef<K, V>>,
+    head: Option<NodeRef<K, V>>,
+    tail: Option<NodeRef<K, V>>,
+}
+
+impl<K: Clone + Eq + std::hash::Hash, V: Clone> LRUCache<K, V> {
+    pub fn new(capacity: usize) -> Self {
+        LRUCache {
+            capacity,
+            cache: HashMap::new(),
+            head: None,
+            tail: None,
+        }
+    }
+
+    pub fn get(&mut self, key: &K) -> Option<V> {
+        if let Some(node_ref) = self.cache.get(key).cloned() {
+            // Переместить в конец (most recently used)
+            self.move_to_end(&node_ref);
+            Some(node_ref.borrow().value.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn put(&mut self, key: K, value: V) {
+        if self.cache.contains_key(&key) {
+            // Обновить значение
+            if let Some(node_ref) = self.cache.get(&key).cloned() {
+                node_ref.borrow_mut().value = value;
+                self.move_to_end(&node_ref);
+            }
+        } else {
+            // Добавить новый элемент
+            if self.cache.len() >= self.capacity {
+                // Удалить least recently used (из начала)
+                self.remove_head();
+            }
+
+            let new_node = Rc::new(RefCell::new(Node {
+                key: key.clone(),
+                value,
+                prev: None,
+                next: None,
+            }));
+
+            self.insert_at_end(&new_node);
+            self.cache.insert(key, new_node);
+        }
+    }
+
+    fn move_to_end(&mut self, node: &NodeRef<K, V>) {
+        // Удалить из текущей позиции
+        let prev = node.borrow_mut().prev.take();
+        let next = node.borrow_mut().next.take();
+
+        if let Some(p) = prev {
+            p.borrow_mut().next = next.clone();
+        } else {
+            self.head = next.clone();
+        }
+
+        if let Some(n) = next {
+            n.borrow_mut().prev = prev.clone();
+        } else {
+            self.tail = prev.clone();
+        }
+
+        // Вставить в конец
+        self.insert_at_end(node);
+    }
+
+    fn insert_at_end(&mut self, node: &NodeRef<K, V>) {
+        node.borrow_mut().prev = self.tail.clone();
+        node.borrow_mut().next = None;
+
+        if let Some(tail) = &self.tail {
+            tail.borrow_mut().next = Some(node.clone());
+        } else {
+            self.head = Some(node.clone());
+        }
+
+        self.tail = Some(node.clone());
+    }
+
+    fn remove_head(&mut self) {
+        if let Some(head) = self.head.take() {
+            let head_key = head.borrow().key.clone();
+            let next = head.borrow_mut().next.take();
+
+            if let Some(n) = next {
+                n.borrow_mut().prev = None;
+                self.head = Some(n);
+            } else {
+                self.tail = None;
+            }
+
+            self.cache.remove(&head_key);
+        }
+    }
+}
+
+fn main() {
+    let mut lru = LRUCache::new(2);
+
+    lru.put(1, "one");
+    lru.put(2, "two");
+    assert_eq!(lru.get(&1), Some("one"));
+
+    lru.put(3, "three");  // 2 удаляется (least recently used)
+    assert_eq!(lru.get(&2), None);
+
+    lru.put(4, "four");   // 1 удаляется
+    assert_eq!(lru.get(&1), None);
+    assert_eq!(lru.get(&3), Some("three"));
+    assert_eq!(lru.get(&4), Some("four"));
+}
+```
+
+---
+
+**Linked List нужен когда:**
+
+- ✅ Частые операции добавления/удаления в начало или конец
+- ✅ Размер неизвестен заранее
+- ✅ Нужна O(1) вставка/удаление из середины (с указателем на узел)
+- ✅ Строится структура вроде LRU Cache, Undo/Redo
+
+**Linked List плох когда:**
+
+- ❌ Нужен индексный доступ
+- ❌ Нужен быстрый поиск
+- ❌ Важна cache-locality (производительность процессора)
+
+На практике в Rust чаще используют `VecDeque` для очередей и `Vec` для стеков, но понимание Linked List критично для разработки сложных структур данных!
+
+---
+
+## 2. Как написать связные структуры данных на safe Rust?
+
+### Основная сложность
+
+Rust требует явного управления владением. В связных структурах каждый узел владеет следующим, но нужна гибкость для разных паттернов доступа.
+
+### Наивный подход (РАБОТАЕТ для однонаправленных списков)
 
 ```rust
 // ✅ Простая однонаправленная связная структура
@@ -42,9 +348,9 @@ fn main() {
 
 ---
 
-### 2. Реализация структур данных: LinkedList, BTreeMap, Graph
+## 3. Реализация структур данных: LinkedList, BTreeMap, Graph
 
-#### LinkedList на safe Rust
+### LinkedList на safe Rust
 
 ```rust
 use std::fmt;
@@ -106,7 +412,7 @@ fn main() {
 }
 ```
 
-#### BTreeMap (используем стандартную библиотеку)
+### BTreeMap (используем стандартную библиотеку)
 
 ```rust
 use std::collections::BTreeMap;
@@ -135,7 +441,7 @@ fn main() {
 }
 ```
 
-#### Graph на safe Rust (с индексами)
+### Graph на safe Rust (с индексами)
 
 ```rust
 pub struct Graph<T> {
@@ -214,9 +520,9 @@ fn main() {
 
 ---
 
-### 3. Почему borrow checker бракует наивную реализацию?
+## 4. Почему borrow checker бракует наивную реализацию?
 
-#### Проблема 1: Циклические ссылки
+### Проблема 1: Циклические ссылки
 
 ```rust
 // ❌ ЭТО НЕ КОМПИЛИРУЕТСЯ
@@ -232,7 +538,7 @@ struct Node<T> {
 - Если у узла есть `next`, а у того есть `prev`, получается циклическое заимствование
 - Невозможно безопасно удалить узел, так как на него ссылаются другие
 
-#### Проблема 2: Множественное заимствование
+### Проблема 2: Множественное заимствование
 
 ```rust
 // ❌ ЭТО НЕ КОМПИЛИРУЕТСЯ
@@ -250,7 +556,7 @@ fn main() {
 }
 ```
 
-#### Проблема 3: Lifetime issues
+### Проблема 3: Lifetime issues
 
 ```rust
 // ❌ ЭТО НЕ КОМПИЛИРУЕТСЯ
@@ -268,9 +574,9 @@ impl<'a, T> LinkedList<'a, T> {
 
 ---
 
-### 4. Как обойти требования borrow checker с помощью Rc и RefCell?
+## 5. Как обойти требования borrow checker с помощью Rc и RefCell?
 
-#### Rc (Reference Counting) — множественное владение (read-only)
+### Rc (Reference Counting) — множественное владение (read-only)
 
 ```rust
 use std::rc::Rc;
@@ -302,7 +608,7 @@ fn main() {
 }
 ```
 
-#### RefCell (Interior Mutability) — mutable доступ
+### RefCell (Interior Mutability) — mutable доступ
 
 ```rust
 use std::rc::Rc;
@@ -338,7 +644,7 @@ fn main() {
 }
 ```
 
-#### Rc + RefCell для двусвязного списка
+### Rc + RefCell для двусвязного списка
 
 ```rust
 use std::rc::Rc;
@@ -400,9 +706,11 @@ fn main() {
 
 ---
 
-### 5. Чем полезен Weak?
+## 6. Чем полезен Weak?
 
-**Проблема:** Rc + циклические ссылки = утечка памяти!
+### Проблема
+
+Rc + циклические ссылки = утечка памяти!
 
 ```rust
 // ❌ УТЕЧКА ПАМЯТИ
@@ -422,7 +730,9 @@ struct Node<T> {
 // Когда мы удаляем список, оба остаются в памяти!
 ```
 
-**Решение: Weak references**
+### Решение
+
+Weak references
 
 ```rust
 use std::rc::{Rc, Weak};
@@ -509,9 +819,9 @@ fn main() {
 
 ---
 
-### 6. Как unsafe-код может помочь оптимизировать реализацию?
+## 7. Как unsafe-код может помочь оптимизировать реализацию?
 
-#### Пример 1: Быстрое удаление элементов из связного списка
+### Пример 1: Быстрое удаление элементов из связного списка
 
 ```rust
 use std::ptr::NonNull;
@@ -574,7 +884,7 @@ fn main() {
 }
 ```
 
-#### Пример 2: Custom allocator для ещё большей производительности
+### Пример 2: Custom allocator для ещё большей производительности
 
 ```rust
 // Используем bumpalo для fast allocation
@@ -620,7 +930,7 @@ fn main() {
 }
 ```
 
-#### Пример 3: Intrusive list (максимальная оптимизация)
+### Пример 3: Intrusive list (максимальная оптимизация)
 
 ```rust
 // Узел содержит ссылку на себя, а не на данные!
