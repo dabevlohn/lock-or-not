@@ -1,6 +1,6 @@
 use std::ptr::NonNull;
 
-// #[derive(Debug)]
+#[derive(Debug)]
 pub struct LinkedList<T> {
     head: Option<NonNull<Node<T>>>,
     len: usize,
@@ -54,5 +54,5 @@ fn main() {
     assert_eq!(list.pop_front(), Some(1));
     assert_eq!(list.len, 2);
 
-    // println!("{:?}", list);
+    println!("{:?}", list);
 }

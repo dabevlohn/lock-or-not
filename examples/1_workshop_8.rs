@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 type NodeRef<T> = Rc<RefCell<Node<T>>>;
 
-// #[derive(Debug)]
+#[derive(Debug)]
 struct Node<T> {
     data: T,
     next: Option<NodeRef<T>>,
@@ -20,7 +20,7 @@ impl<T> Node<T> {
     }
 }
 
-// #[derive(Debug)]
+#[derive(Debug)]
 struct DoublyLinkedList<T> {
     head: Option<NodeRef<T>>,
     tail: Option<NodeRef<T>>,
@@ -54,5 +54,5 @@ fn main() {
     list.push_back(2);
     list.push_back(3);
 
-    // println!("{:?}", list);
+    println!("{:?}", list);
 }

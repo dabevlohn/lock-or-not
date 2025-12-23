@@ -48,7 +48,7 @@ impl<T: fmt::Display> fmt::Display for LinkedList<T> {
 fn main() {
     let mut list = LinkedList::new();
     list.push_front(1);
-    list.push_front(2);
+    //list.push_front(2);
     list.push_front(3);
     println!("{}", list); // 3 -> 2 -> 1 -> None
 
